@@ -13,15 +13,15 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"time"
 	"strings"
+	"time"
 )
 
 const (
 	defaultBufferSize = 10
-	UP = "UP"
-	DOWN = "DOWN"
-	STARTING = "STARTING"
+	UP                = "UP"
+	DOWN              = "DOWN"
+	STARTING          = "STARTING"
 )
 
 type Config struct {
@@ -30,6 +30,9 @@ type Config struct {
 	CaCertFile  []string      `json:"caCertFiles"`
 	DialTimeout time.Duration `json:"timeout"`
 	Consistency string        `json:"consistency"`
+
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type Client struct {
@@ -50,8 +53,10 @@ type Client struct {
 	// Argument numReqs is the number of http.Requests that have been made so far.
 	// Argument lastResp is the http.Responses from the last request.
 	// Argument err is the reason of the failure.
-	CheckRetry  func(cluster *Cluster, numReqs int,
-	lastResp http.Response, err error) error
+	CheckRetry func(cluster *Cluster, numReqs int,
+		lastResp http.Response, err error) error
+
+	IsAuth bool
 }
 
 // NewClient create a basic client that is configured to be used
@@ -65,6 +70,24 @@ func NewClient(machines []string) *Client {
 	client := &Client{
 		Cluster: NewCluster(machines),
 		Config:  config,
+	}
+
+	client.initHTTPClient()
+	return client
+}
+
+func NewClientWithAuth(machines []string, username, password string) *Client {
+	config := Config{
+		// default timeout is one second
+		DialTimeout: time.Second,
+		Username:    username,
+		Password:    password,
+	}
+
+	client := &Client{
+		Cluster: NewCluster(machines),
+		Config:  config,
+		IsAuth:  true,
 	}
 
 	client.initHTTPClient()
@@ -206,7 +229,7 @@ func (c *Client) AddRootCA(caCert string) error {
 		return errors.New("Client has not been initialized yet!")
 	}
 
-	certBytes, err := ioutil.ReadFile(caCert)
+	certBytes, err := os.ReadFile(caCert)
 	if err != nil {
 		return err
 	}
@@ -260,7 +283,7 @@ func (c *Client) internalSyncCluster(machines []string) bool {
 			// try another machine in the cluster
 			continue
 		} else {
-			b, err := ioutil.ReadAll(resp.Body)
+			b, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if err != nil {
 				// try another machine in the cluster

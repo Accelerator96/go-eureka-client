@@ -25,6 +25,9 @@ type RawRequest struct {
 	relativePath string
 	body         []byte
 	cancel       <-chan bool
+
+	username string
+	password string
 }
 type Applications struct {
 	VersionsDelta int           `xml:"versions__delta"`
@@ -289,6 +292,10 @@ func (c *Client) SendRequest(rr *RawRequest) (*RawResponse, error) {
 
 			if req, err = http.NewRequest(rr.method, httpPath, bytes.NewReader(rr.body)); err != nil {
 				return nil, err
+			}
+
+			if c.IsAuth {
+				req.SetBasicAuth(c.Config.Username, c.Config.Password)
 			}
 
 			req.Header.Set("Content-Type",
